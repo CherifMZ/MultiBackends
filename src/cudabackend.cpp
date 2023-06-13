@@ -452,25 +452,49 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   {
     throw std::runtime_error("Error: Failed to set CUDA device before memory allocation.");
   }
-  CUresult    res;
-  CUmodule    module;
-  CUfunction  function;
+  CUresult     err;
+  nvrtcProgram prog;
+  CUmodule     module;
+  CUfunction   function;
+
+  nvrtcCreateProgram(&prog, kernel_source, nullptr, 0, nullptr, nullptr);
+
+  nvrtcResult compileResult = nvrtcCompileProgram(prog, 0, nullptr);
+  if (compileResult != NVRTC_SUCCESS)
+  {
+    size_t logSize;
+    nvrtcGetProgramLogSize(prog, &logSize);
+    std::vector<char> log(logSize);
+    nvrtcGetProgramLog(prog, log.data());
+  }
+
+  size_t ptxSize;
+  nvrtcGetPTXSize(prog, &ptxSize);
+  std::vector<char> ptx(ptxSize);
+  nvrtcGetPTX(prog, ptx.data());
+
+  err = cuModuleLoadData(&cuModule, ptx.data());
+  if (err != CUDA_SUCCESS)
+  {
+    const char * errorString;
+    cuGetErrorString(err, &errorString);
+    std::cerr << errorString << std::endl;
+  }
+
   std::string hash = std::to_string(std::hash<std::string>{}(kernel_source));
   // loadProgramFromCache(device, hash, module);
   // if (module == nullptr)
   // {
-  res = cuModuleLoadDataEx(&module, kernel_source.c_str(), 0, 0, 0);
-  if (res != CUDA_SUCCESS)
-  {
-    throw std::runtime_error("Error: Failed to build program.");
-  }
   //   saveProgramToCache(device, hash, module);
   // }
-  res = cuModuleGetFunction(&function, module, kernel_name.c_str());
-  if (res != CUDA_SUCCESS)
+  err = cuModuleGetFunction(&cuFunction, cuModule, kernel_name);
+  if (err != CUDA_SUCCESS)
   {
-    throw std::runtime_error("Error: Failed to get kernel.");
+    const char * errorString;
+    cuGetErrorString(err, &errorString);
+    std::cerr << "Failed: " << errorString << std::endl;
   }
+
   *(reinterpret_cast<CUfunction *>(kernel)) = function;
 #else
   throw std::runtime_error("Error: CUDA backend is not enabled");

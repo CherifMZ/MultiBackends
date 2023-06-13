@@ -7,13 +7,15 @@ namespace cle
 
 CUDADevice::CUDADevice(int deviceIndex)
   : cudaDeviceIndex(deviceIndex)
-  , cudaStream(nullptr)
+  // , cudaStream(nullptr)
 {}
 
 CUDADevice::~CUDADevice()
 {
   if (isInitialized())
   {
+    // cuCtxDestroy(cuContext);
+    // TODO: explore destuctor for device etc.
     finalize();
   }
 }
@@ -32,13 +34,19 @@ CUDADevice::initialize() -> void
     std::cerr << "CUDA device already initialized" << std::endl;
     return;
   }
-  auto err = cudaSetDevice(cudaDeviceIndex);
+  auto err = cuDeviceGet(&cudaDevice, cudaDeviceIndex);
   if (err != cudaSuccess)
   {
     std::cerr << "Failed to set CUDA device" << std::endl;
     return;
   }
-  err = cudaStreamCreate(&cudaStream);
+  // err = cudaStreamCreate(&cudaStream);
+  // if (err != cudaSuccess)
+  // {
+  //   std::cerr << "Failed to create CUDA stream" << std::endl;
+  //   return;
+  // }
+  err = cuCtxCreate(&cudaContext, 0, cudaDevice);
   if (err != cudaSuccess)
   {
     std::cerr << "Failed to create CUDA stream" << std::endl;
@@ -55,8 +63,9 @@ CUDADevice::finalize() -> void
     std::cerr << "CUDA device not initialized" << std::endl;
     return;
   }
-  cudaStreamSynchronize(cudaStream);
-  cudaStreamDestroy(cudaStream);
+  // TODO: Verify how to empty queue
+  // cudaStreamSynchronize(cudaStream);
+  // cudaStreamDestroy(cudaStream);
   initialized = false;
 }
 
@@ -68,8 +77,8 @@ CUDADevice::finish() -> void
     std::cerr << "CUDA device not initialized" << std::endl;
     return;
   }
-
-  cudaStreamSynchronize(cudaStream);
+  // TODO: Verify how to empty queue
+  // cudaStreamSynchronize(cudaStream);
 }
 
 auto
@@ -79,15 +88,27 @@ CUDADevice::isInitialized() const -> bool
 }
 
 auto
+CUDADevice::getCUDADevice() const -> CUdevice
+{
+  return cudaDevice;
+}
+
+// auto
+// CUDADevice::getCUDAStream() const -> cudaStream_t
+// {
+//   return cudaStream;
+// }
+
+auto 
+CUDADevice::getCUDAContext() const -> const CUcontext &
+{
+  return cudaContext;
+}
+
+auto 
 CUDADevice::getCUDADeviceIndex() const -> int
 {
   return cudaDeviceIndex;
-}
-
-auto
-CUDADevice::getCUDAStream() const -> cudaStream_t
-{
-  return cudaStream;
 }
 
 auto
