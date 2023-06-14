@@ -452,12 +452,13 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   {
     throw std::runtime_error("Error: Failed to set CUDA device before memory allocation.");
   }
-  CUresult     err;
+
+  CUresult     error;
   nvrtcProgram prog;
   CUmodule     module;
   CUfunction   function;
 
-  nvrtcCreateProgram(&prog, kernel_source, nullptr, 0, nullptr, nullptr);
+  nvrtcCreateProgram(&prog, kernel_source.c_str(), nullptr, 0, nullptr, nullptr);
 
   nvrtcResult compileResult = nvrtcCompileProgram(prog, 0, nullptr);
   if (compileResult != NVRTC_SUCCESS)
@@ -473,11 +474,11 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   std::vector<char> ptx(ptxSize);
   nvrtcGetPTX(prog, ptx.data());
 
-  err = cuModuleLoadData(&cuModule, ptx.data());
-  if (err != CUDA_SUCCESS)
+  error = cuModuleLoadData(&module, ptx.data());
+  if (error != CUDA_SUCCESS)
   {
     const char * errorString;
-    cuGetErrorString(err, &errorString);
+    cuGetErrorString(error, &errorString);
     std::cerr << errorString << std::endl;
   }
 
@@ -487,11 +488,11 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   // {
   //   saveProgramToCache(device, hash, module);
   // }
-  err = cuModuleGetFunction(&cuFunction, cuModule, kernel_name);
-  if (err != CUDA_SUCCESS)
+  error = cuModuleGetFunction(&function, module, kernel_name.c_str());
+  if (error != CUDA_SUCCESS)
   {
     const char * errorString;
-    cuGetErrorString(err, &errorString);
+    cuGetErrorString(error, &errorString);
     std::cerr << "Failed: " << errorString << std::endl;
   }
 
