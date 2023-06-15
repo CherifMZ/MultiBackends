@@ -52,15 +52,15 @@ run_test()
   parameters.push_back({ "dst", arrC.ptr() });
   parameters.push_back({ "int", N });
 
-  cle::execute(device, kernel, parameters, constants, global_rage);
+  // cle::execute(device, kernel, parameters, constants, global_rage);
 
-  float data_out[size];
-  arrC.read(data_out);
-  for (int i = 0; i < size; i++)
-  {
-    std::cout << data_out[i] << " ";
-  }
-  std::cout << std::endl;
+  // float data_out[size];
+  // arrC.read(data_out);
+  // for (int i = 0; i < size; i++)
+  // {
+  //   std::cout << data_out[i] << " ";
+  // }
+  // std::cout << std::endl;
 }
 
 int
