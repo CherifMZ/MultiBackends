@@ -1,5 +1,9 @@
 #include "backend.hpp"
 #include "cle_preamble_cu.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <nvrtc.h>
 
 namespace cle
 {
@@ -457,16 +461,28 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   nvrtcProgram prog;
   CUmodule     module;
   CUfunction   function;
+  nvrtcResult compileResult;
 
-  nvrtcCreateProgram(&prog, kernel_source.c_str(), nullptr, 0, nullptr, nullptr);
+  std::cout << kernel_source << std::endl;
 
-  nvrtcResult compileResult = nvrtcCompileProgram(prog, 0, nullptr);
+  compileResult = nvrtcCreateProgram(&prog, kernel_source.c_str(), nullptr, 0, nullptr, nullptr);
   if (compileResult != NVRTC_SUCCESS)
   {
     size_t logSize;
     nvrtcGetProgramLogSize(prog, &logSize);
     std::vector<char> log(logSize);
     nvrtcGetProgramLog(prog, log.data());
+    fprintf(stderr, "* Error Creating the CUDA program.\n");
+  }
+
+  compileResult = nvrtcCompileProgram(prog, 0, nullptr);
+  if (compileResult != NVRTC_SUCCESS)
+  {
+    size_t logSize;
+    nvrtcGetProgramLogSize(prog, &logSize);
+    std::vector<char> log(logSize);
+    nvrtcGetProgramLog(prog, log.data());
+    fprintf(stderr, "* Error initializing the CUDA program.\n");
   }
 
   size_t ptxSize;
@@ -480,14 +496,9 @@ CUDABackend::buildKernel(const Device::Pointer & device,
     const char * errorString;
     cuGetErrorString(error, &errorString);
     std::cerr << errorString << std::endl;
+    fprintf(stderr, "* Error initializing the CUDA module.\n");
   }
 
-  std::string hash = std::to_string(std::hash<std::string>{}(kernel_source));
-  // loadProgramFromCache(device, hash, module);
-  // if (module == nullptr)
-  // {
-  //   saveProgramToCache(device, hash, module);
-  // }
   error = cuModuleGetFunction(&function, module, kernel_name.c_str());
   if (error != CUDA_SUCCESS)
   {
@@ -497,6 +508,16 @@ CUDABackend::buildKernel(const Device::Pointer & device,
   }
 
   *(reinterpret_cast<CUfunction *>(kernel)) = function;
+
+  // std::cout << *(reinterpret_cast<CUfunction *>(kernel)) << " ";
+  // printf("\n");
+
+  std::string hash = std::to_string(std::hash<std::string>{}(kernel_source));
+  // loadProgramFromCache(device, hash, module);
+  // if (module == nullptr)
+  // {
+  //   saveProgramToCache(device, hash, module);
+  // }
 #else
   throw std::runtime_error("Error: CUDA backend is not enabled");
 #endif
@@ -511,6 +532,61 @@ CUDABackend::executeKernel(const Device::Pointer &       device,
                            const std::vector<size_t> &   sizes) const -> void
 {
   // @StRigaud TODO: add cuda kernel execution
+  auto       cuda_device = std::dynamic_pointer_cast<const CUDADevice>(device);
+  CUresult   err;
+  CUfunction cuda_kernel;
+  try
+  {
+    buildKernel(device, kernel_source, kernel_name, &cuda_kernel);
+  }
+  catch (const std::exception & e)
+  {
+    throw std::runtime_error("Error: Failed to build kernel. \n\t > " + std::string(e.what()));
+  }
+
+  // for (size_t i = 0; i < args.size(); i++)
+  // {
+  //   std::cout << args.data() << " ";
+  // }
+
+  printf("%d\n", args.size());
+
+  void* argsArray[4];
+  std::copy(args.begin(), args.end(), argsArray);
+
+  for (size_t i = 0; i < args.size(); i++)
+  {
+    std::cout << argsArray[i] << " ";
+  }
+
+  printf("\n");
+
+  // dim3 blockDims(global_size[0], global_size[1], global_size[2]);
+  // dim3 gridDims(x, y, z) is local
+
+  dim3 blockDims(16, 16, 1);
+  dim3 gridDims(16, 16, 1);
+
+  // Launch the kernel
+  err = cuLaunchKernel(cuda_kernel,
+                       gridDims.x,
+                       gridDims.y,
+                       gridDims.z,
+                       blockDims.x,
+                       blockDims.y,
+                       blockDims.z,
+                       0,
+                       NULL,
+                       argsArray,
+                       NULL);
+
+  if (err != CUDA_SUCCESS)
+  {
+    const char * errorString;
+    cuGetErrorString(err, &errorString);
+    std::cerr << errorString << std::endl;
+  }
+  // cuCtxSynchronize();
 }
 
 auto
