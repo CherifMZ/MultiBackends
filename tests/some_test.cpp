@@ -15,6 +15,7 @@
 void
 run_test()
 {
+  
   cle::BackendManager & backendManager = cle::BackendManager::getInstance();
   auto                  device = backendManager.getBackend().getDevice("TX", "all");
   device->initialize();
